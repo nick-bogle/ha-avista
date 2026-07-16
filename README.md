@@ -1,3 +1,5 @@
+<img src="assets/icon.svg" alt="" width="96" align="right">
+
 # Avista Utilities for Home Assistant
 
 Pulls electric and gas usage and cost from [Avista](https://www.myavista.com) into
@@ -10,14 +12,34 @@ the Energy dashboard and in Developer Tools -> Statistics.
 
 ## Installation
 
-1. Add this repository to HACS as a custom repository (category: Integration), or
-   copy `custom_components/avista/` into your `config/custom_components/`.
-2. Restart Home Assistant.
-3. Settings -> Devices & Services -> Add Integration -> **Avista Utilities**.
-4. Sign in with your myavista.com email and password.
+### Via HACS
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=nick-bogle&repository=ha-avista&category=integration)
+
+That button opens this repository in HACS on your own Home Assistant. Otherwise
+add it by hand: HACS -> Integrations -> the three dot menu -> **Custom
+repositories** -> `https://github.com/nick-bogle/ha-avista`, category
+**Integration**.
+
+Then **Download**, and restart Home Assistant.
+
+### By hand
+
+Copy `custom_components/avista/` into your `config/custom_components/` and
+restart Home Assistant.
+
+### Then add the integration
+
+[![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=avista)
+
+Or: Settings -> Devices & Services -> Add Integration -> **Avista Utilities**.
+Sign in with your myavista.com email and password.
 
 Electric and gas are detected automatically: the setup probes each fuel and enables
 whichever the account actually has service for.
+
+The first run takes roughly 45 seconds while it backfills history, so expect a
+"setup is taking over 10 seconds" warning in the log.
 
 ## Energy dashboard
 
@@ -69,3 +91,12 @@ Costs are unaffected — they come straight from the API in dollars.
 Home Assistant 2026.2.3 or newer — verified against that version. The statistics
 metadata this writes uses `mean_type`/`unit_class`, which replaced the `has_mean`
 field removed in 2026.4.
+
+The integration icon in `custom_components/avista/brand/` needs Home Assistant
+2026.3.0 or newer, which is when custom integrations gained the ability to ship
+their own brand images. On older versions everything still works, you just get
+the default placeholder icon.
+
+The icon is a generic bolt-and-flame mark for electric and gas. It is
+deliberately **not** Avista's logo: inventing something Avista-looking would
+misrepresent their branding, and their real logo is theirs to decide about.
