@@ -1,0 +1,25 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "description": "Sign in with your myavista.com account.",
+        "data": {
+          "username": "Email address",
+          "password": "Password"
+        },
+        "data_description": {
+          "username": "The email address you use to sign in at myavista.com."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect",
+      "invalid_auth": "Invalid authentication",
+      "no_fuels": "Signed in, but no electric or gas service was found on this account.",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "This Avista account is already configured."
+    }
+  }
+}
