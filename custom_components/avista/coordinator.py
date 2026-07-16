@@ -29,10 +29,12 @@ from homeassistant.util import dt as dt_util
 from homeassistant.util.unit_conversion import EnergyConverter, VolumeConverter
 
 from .const import (
-    BACKFILL_DAYS,
     CONF_FUELS,
+    DAILY_BACKFILL_DAYS,
+    DAILY_STRIDE,
     DOMAIN,
     ELECTRIC,
+    HOURLY_DAYS,
     MAX_CONCURRENT_REQUESTS,
     REFETCH_DAYS,
     UPDATE_INTERVAL,
@@ -222,69 +224,107 @@ class AvistaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _async_get_reads(
         self, measurement: str, start_time: float | None
     ) -> list[CostRead]:
-        """Get hourly reads, localized and ready for statistics.
+        """Get reads for the range, localized and ready for statistics.
 
-        On the first run this backfills BACKFILL_DAYS; afterwards it re-reads
-        from REFETCH_DAYS before the last statistic, since utilities revise
-        readings after the fact.
+        Read at two resolutions: hourly for the recent HOURLY_DAYS, daily for
+        everything older. Hourly costs one request per day and Avista answers in
+        about four seconds, so an hourly backfill of real history cannot finish
+        inside Home Assistant's setup timeout, while daily covers 32 days per
+        request.
+
+        On the first run this backfills up to DAILY_BACKFILL_DAYS; afterwards it
+        re-reads from REFETCH_DAYS before the last statistic, since utilities
+        revise readings after the fact.
         """
         tz = await dt_util.async_get_time_zone(self.api.utility.timezone())
         end = dt_util.now(tz)
+        floor = end - timedelta(days=DAILY_BACKFILL_DAYS)
         if start_time is None:
-            start = end - timedelta(days=BACKFILL_DAYS)
+            start = floor
         else:
-            start = datetime.fromtimestamp(start_time, tz=tz) - timedelta(
-                days=REFETCH_DAYS
+            start = max(
+                datetime.fromtimestamp(start_time, tz=tz)
+                - timedelta(days=REFETCH_DAYS),
+                floor,
             )
-        return await self._async_fetch_hourly(measurement, start, end, tz)
 
-    async def _async_fetch_hourly(
-        self, measurement: str, start: datetime, end: datetime, tz: Any
+        # Split on a local midnight so the two resolutions cannot both describe
+        # the same hour and double count into the sum.
+        hourly_start = (end - timedelta(days=HOURLY_DAYS)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+
+        reads: list[CostRead] = []
+        if start < hourly_start:
+            daily = await self._async_fetch_ranged(
+                measurement, AggregateType.DAY, start, hourly_start, tz, DAILY_STRIDE
+            )
+            reads += [r for r in daily if r.start_time < hourly_start]
+        reads += await self._async_fetch_ranged(
+            measurement, AggregateType.HOUR, max(start, hourly_start), end, tz, 1
+        )
+        reads.sort()
+        return reads
+
+    async def _async_fetch_ranged(
+        self,
+        measurement: str,
+        aggregate: AggregateType,
+        start: datetime,
+        end: datetime,
+        tz: Any,
+        stride: int,
     ) -> list[CostRead]:
-        """Fetch hourly reads a day at a time, with bounded concurrency.
+        """Fetch reads across a range, with bounded concurrency.
 
-        Avista returns 24 hourly reads per request, selected by the request's
-        end timestamp. bidgely's async_get_usage_data would gather every day at
-        once -- a year of backfill in one burst -- so drive async_fetch directly
-        behind a semaphore instead.
+        Avista picks the window from the request's end timestamp and ignores
+        start: an hourly request returns the 24 hours of that day, a daily
+        request the 32 days ending then. So walk the end forward in stride day
+        steps. bidgely's async_get_usage_data would gather every step at once,
+        so drive async_fetch directly behind a semaphore instead.
         """
         semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
 
-        async def fetch_day(day: datetime) -> list[CostRead]:
+        async def fetch(anchor: datetime) -> list[CostRead]:
             async with semaphore:
                 return await self.api.async_fetch(
-                    measurement, AggregateType.HOUR, day - timedelta(days=1), day
+                    measurement, aggregate, anchor - timedelta(days=stride), anchor
                 )
 
-        # Noon local time unambiguously identifies the day being asked for,
-        # even across daylight saving transitions.
-        day = start.astimezone(tz).replace(hour=12, minute=0, second=0, microsecond=0)
-        days: list[datetime] = []
-        while day <= end:
-            days.append(day)
-            day += timedelta(days=1)
+        # Noon local time unambiguously names the day being asked for, even
+        # across daylight saving transitions.
+        anchors: list[datetime] = []
+        anchor = start.astimezone(tz).replace(
+            hour=12, minute=0, second=0, microsecond=0
+        )
+        while anchor < end:
+            anchor += timedelta(days=stride)
+            anchors.append(min(anchor, end))
+        if not anchors:
+            anchors = [end]
 
-        results = await asyncio.gather(*(fetch_day(d) for d in days))
+        results = await asyncio.gather(*(fetch(a) for a in anchors))
 
-        reads: list[CostRead] = []
-        for day_reads in results:
-            for read in day_reads:
-                # The most recent hours exist but carry no consumption yet;
+        # Windows overlap at the edges, so key by start time to drop repeats.
+        by_start: dict[datetime, CostRead] = {}
+        for chunk in results:
+            for read in chunk:
+                # The most recent reads exist but carry no consumption yet;
                 # Avista publishes about a day late. Zeroing them would write
                 # false troughs into the statistics.
                 if read.consumption is None:
                     continue
                 # The API returns naive local wall clock times. Statistics need
                 # timezone aware starts on exact hour boundaries.
-                reads.append(
-                    CostRead(
-                        start_time=read.start_time.replace(tzinfo=tz),
-                        end_time=read.end_time.replace(tzinfo=tz),
-                        consumption=read.consumption,
-                        cost=read.cost,
-                        temperature=read.temperature,
-                        itemization=read.itemization,
-                    )
+                localized = read.start_time.replace(tzinfo=tz)
+                if localized in by_start or localized < start:
+                    continue
+                by_start[localized] = CostRead(
+                    start_time=localized,
+                    end_time=read.end_time.replace(tzinfo=tz),
+                    consumption=read.consumption,
+                    cost=read.cost,
+                    temperature=read.temperature,
+                    itemization=read.itemization,
                 )
-        reads.sort()
-        return reads
+        return sorted(by_start.values())

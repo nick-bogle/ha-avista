@@ -48,9 +48,18 @@ Costs are unaffected — they come straight from the API in dollars.
 
 - **No bill forecast.** Avista's Bidgely host puts `/2.1/*` (`billprojections`)
   behind AWS IAM auth and rejects bearer tokens, so no forecast is available.
-- **First run is slow.** Hourly data costs one request per day, so the initial
-  365-day backfill makes a few hundred requests (4 at a time). Later refreshes
-  re-read only the last 30 days, every 12 hours, to pick up utility corrections.
+- **Two read resolutions.** Avista answers a usage request in about 4 seconds,
+  and hourly data costs one request per *day*, so an hourly backfill of real
+  history cannot finish inside Home Assistant's 300 second setup timeout. The
+  last 14 days are read hourly; everything older comes from daily reads, which
+  cover 32 days per request. First run takes roughly 45 seconds for both fuels,
+  so expect a "setup is taking over 10 seconds" warning in the log. Later
+  refreshes run every 12 hours and re-read the last 30 days to pick up utility
+  corrections.
+- **The first partial bill cycle has no hourly or daily data.** Avista's
+  per-day data starts later than its billing data, so the opening partial cycle
+  exists only at monthly resolution and is not imported. It is a one-off gap of
+  a few days at the very beginning of history.
 - **Statistic IDs** are keyed by the Bidgely user id, because Avista's
   `getBidgelyWidgetData` returns whichever account the session has active — the
   account number is never sent.
