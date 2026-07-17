@@ -1,13 +1,19 @@
 {
   "domain": "avista",
   "name": "Avista Utilities",
-  "codeowners": ["@nick-bogle"],
+  "codeowners": [
+    "@nick-bogle"
+  ],
   "config_flow": true,
-  "dependencies": ["recorder"],
+  "dependencies": [
+    "recorder"
+  ],
   "documentation": "https://github.com/nick-bogle/ha-avista",
   "integration_type": "service",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/nick-bogle/ha-avista/issues",
-  "requirements": ["bidgely-avista==0.2.0"],
-  "version": "0.2.1"
+  "requirements": [
+    "bidgely-avista==0.2.0"
+  ],
+  "version": "0.2.2"
 }

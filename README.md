@@ -1,4 +1,4 @@
-<img src="assets/icon.svg" alt="" width="96" align="right">
+<img src="custom_components/avista/brand/icon.png" alt="" width="96" align="right">
 
 # Avista Utilities for Home Assistant
 
@@ -97,6 +97,15 @@ The integration icon in `custom_components/avista/brand/` needs Home Assistant
 their own brand images. On older versions everything still works, you just get
 the default placeholder icon.
 
-The icon is a generic bolt-and-flame mark for electric and gas. It is
-deliberately **not** Avista's logo: inventing something Avista-looking would
-misrepresent their branding, and their real logo is theirs to decide about.
+## Branding
+
+The icon is Avista's stylised "A", and the logo is the Avista wordmark. Both are
+rendered from Avista's own `avista_logo.svg` (kept in `assets/` so they can be
+regenerated). The site's `favicon.ico` shows the same mark but is only 16x16,
+far too small for the 256x256 the icon requires, so the mark was extracted from
+the vector logo instead and is sharp at any size.
+
+Avista and the Avista logo are trademarks of Avista Corporation. They are used
+here only to identify which utility this integration talks to, the same way
+[home-assistant/brands](https://github.com/home-assistant/brands) does for every
+other integration. This project is not affiliated with or endorsed by Avista.
