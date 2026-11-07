@@ -13,7 +13,7 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/nick-bogle/ha-avista/issues",
   "requirements": [
-    "bidgely-avista==0.2.0"
+    "bidgely-avista==0.2.1"
   ],
-  "version": "0.2.2"
+  "version": "0.2.3"
 }
